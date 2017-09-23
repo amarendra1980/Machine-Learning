@@ -1,0 +1,108 @@
+---
+title: "Machine Learning Course Project"
+author: "Amarendra"
+date: "September 23, 2017"
+output: 
+  html_document:
+    keep_md: true 
+---
+# Overview
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Goal 
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+# Initial Set up
+```{r}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(caret)
+library(randomForest)
+```
+
+# Loading the Data
+
+I have downloaded data into R working directory. Reading data from working directory into R variables.
+```{r}
+train <- read.csv("training.csv", na.strings=c("NA","#DIV/0!",""))
+test <- read.csv("testing.csv", na.strings=c("NA","#DIV/0!",""))
+str(train)
+```
+
+# Splitting the Data
+
+Spliting 30% of training data into another set for cross validation of the model
+```{r}
+set.seed(123)
+inTrain <- createDataPartition(y=train$classe, p=0.7, list=FALSE)
+myTrain <- train[inTrain, ]
+myTest <- train[-inTrain, ]
+dim(myTrain)
+dim(myTest)
+```
+
+# Cleaning the data
+
+Get rid of variable, which are not predictors and ones which have 70% of values as NA
+```{r}
+nzv <- nearZeroVar(myTrain, saveMetrics=TRUE)
+myTrain <- myTrain[,nzv$nzv==FALSE]
+myTrain<- myTrain[,8:length(myTrain)]
+myTrainSub <- myTrain
+for(i in 1:length(myTrain)) {
+    if( sum( is.na( myTrain[, i] ) ) /nrow(myTrain) >= .7) {
+        for(j in 1:length(myTrainSub)) {
+            if( length( grep(names(myTrain[i]), names(myTrainSub)[j]) ) == 1)  {
+                myTrainSub <- myTrainSub[ , -j]
+            }   
+        } 
+    }
+}
+```
+
+Sync up testing datasets
+```{r}
+myTrain <- myTrainSub
+c<- colnames(myTrain)
+myTest<- myTest[c]
+dim(myTrain)
+dim(myTest)
+```
+
+# Model Selection
+
+I have decided to use Random forest algorithm as it is quite reliable.
+```{r}
+set.seed(123)
+modFit<-  randomForest(classe ~ ., data=myTrain)
+print(modFit)
+```
+Plot of the model
+```{r}
+plot(modFit)
+```
+
+## Cross validation & Out of Sample error
+Lets run our model with myTest data set to perform cross validation and get out of sample error by printing confusion matrix. As per matrix, out of sample error is 100-99.64= 0.36%, which is reasonable. So, we can select random forest as our prediction model.
+
+```{r}
+predict1<-predict(modFit, myTest, type = "class")
+cmatrix <- confusionMatrix(predict1, myTest$classe)
+cmatrix
+```
+
+
+# Predicting results on final test data set
+
+```{r}
+predict2 <- predict(modFit, test, type = "class")
+predict2
+```
